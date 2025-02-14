@@ -133,7 +133,7 @@ pytest --cov=app --cov-report=html
 ## 📌 Author
 👤 **Naman Vats**  
 📧 **way2naman13@gmail.com**  
-📍 **GitHub:** [Your Repo](https://github.com/namanvats/videoverse-api)
+📍 **GitHub:** [This Repo](https://github.com/namanvats/videoverse-api)
 
 ## 📖 References
 - https://www.ffmpeg.org/
