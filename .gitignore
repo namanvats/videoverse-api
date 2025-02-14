@@ -91,5 +91,5 @@ db.sqlite3
 *.pkl
 *.lock
 
-*.db
-*.rdb
+# *.db
+# *.rdb

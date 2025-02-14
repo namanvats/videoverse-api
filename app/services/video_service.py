@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from app.models.video import Video
 
 UPLOAD_DIR = "./uploads"
+MERGED_DIR = "./merged"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(MERGED_DIR, exist_ok=True)
 
 def save_video(file, max_size_mb, db: Session):
     file_size = file.file.read()
@@ -61,7 +63,45 @@ def merge_videos(video_ids: list, db: Session):
     if len(videos) != len(video_ids):
         raise HTTPException(status_code=404, detail="One or more videos not found")
     
-    return {"message": "Videos merged successfully", "merged_video_id": str(uuid.uuid4())}
+    input_txt_path = os.path.join(MERGED_DIR, "input.txt")
+    merged_filename = f"merged_{uuid.uuid4()}.mp4"
+    merged_filepath = os.path.join(MERGED_DIR, merged_filename)
+
+    preprocessed_files = []
+    for video in videos:
+        preprocessed_file = os.path.join(MERGED_DIR, f"preprocessed_{uuid.uuid4()}.mp4")
+
+        preprocess_command = [
+            "ffmpeg", "-i", video.filepath, "-vf", "setpts=PTS-STARTPTS", "-af", "asetpts=PTS-STARTPTS",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-c:a", "aac", "-b:a", "192k", "-y", preprocessed_file
+        ]
+        process = subprocess.run(preprocess_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        if process.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"Error preprocessing video: {process.stderr.decode()}")
+
+        if not os.path.exists(preprocessed_file):
+            raise HTTPException(status_code=500, detail=f"Preprocessed file not found: {preprocessed_file}")
+
+        preprocessed_files.append(preprocessed_file)
+
+    with open(input_txt_path, "w") as f:
+        for preprocessed in preprocessed_files:
+            f.write(f"file '{os.path.abspath(preprocessed)}'\n")
+
+    command = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", input_txt_path, "-c", "copy", merged_filepath]
+    process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    if process.returncode != 0:
+        raise HTTPException(status_code=500, detail=f"Error merging videos: {process.stderr.decode()}")
+
+    merged_video = Video(filename=merged_filename, filepath=merged_filepath)
+    db.add(merged_video)
+    db.commit()
+    db.refresh(merged_video)
+
+    return {"message": "Videos merged successfully", "merged_video_id": merged_video.id, "download_url": f"/api/download/{merged_video.id}"}
+
 
 def share_video(video_id: str, expiry_minutes: int, db: Session):
     video = db.query(Video).filter(Video.id == video_id).first()

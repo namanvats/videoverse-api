@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from app.api.routes import upload, process, share, download
-from app.core.database import init_db
+from app.core.database import get_db
 
 app = FastAPI()
 
-init_db()
+get_db()
 
 app.include_router(upload.router, prefix="/api")
 app.include_router(process.router, prefix="/api")
